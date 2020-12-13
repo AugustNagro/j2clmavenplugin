@@ -1,98 +1,3 @@
-J2CL Maven plugin
-=================
-
-This plugin includes the code original developed as
-
-        com.vertispan.j2cl:build-tools
-
-built from here:
-
-    https://github.com/gitgabrio/j2cl-devmode-strawman
-
-------------------------
-
-# Goals
-
-The plugin has four goals
-
-1. `build`: executes a single compilation, typically to produce a JS application or library.
-
-2. `test`: compiles and executes j2cl-annotated tests, once.
-
-3. `watch`: monitor source directories, and when changes happen that affect any `build` or `test`, recompile the 
-required parts of the project. Tests are not (presently) run, but can be run manually by loading the html pages
-that exist for them.
-  
-<!--   * `watch-test`: only rebuild things that affect `test` executions, useful when iterating on tests and avoiding
-    building the application itself
-   * `watch-build`: only rebuild things that affect `build` executions, may save time if tests aren't currently
-    being re-run               -->
-  
-4. `clean`: cleans up all the plugin-specific directories
-
-
-----
-
-Building executable JS output for a "GWT 3" project requires transpiling each of its dependencies
-with J2CL, then combining them all into a single output through the use of the closure compiler.
-Along the way, we must also take care to preprocess sources (strip out any `@GwtIncompatible`-annotated
-members) and run any annotations processors. 
-
-Building once from sources is simple enough - for each item in the dependency graph, first build the 
-projects it depends on, then build it - preprocess sources, to `@GwtIncompatible`-stripped bytecode while 
-running annotation processors, then using stripped bytecode of dependencies, transpile any java sources
-in the project (both generated and provided by the project). This can even be cached to a large degree:
-create a hash of
- * the toolchain (j2cl, maven plugin)
- * the contents of the source files
- * the hashes of the dependencies
- 
-If any of those changes, we know we likely need to recompile a given project, and then the projects that 
-depend on it, etc.
-
-For "dev mode", we want to keep these processes running, keep as much cached and jit'd as possible, to
-prevent spending startup time over and over on each project. If we execute a single maven goal to do this,
-we will want it to be run on a "parent" in the reactor, so that any changed modules are detected and
-recompiled correctly, rather than depending on stale sources
-
-----
-
-## Persistent, shared caching
-
-To help make this faster on your own machine, you can move the cache directory out of `target/`, and into
-somewhere global like `~/.m2/` so that it doesn't get deleted every time you need to clean your maven project.
-Similarly, this will result in all GWT 3 projects built on your machine sharing the same cache, so that as long
-as the same version of the compiler is run on the same sources, output can be reused rather than building it
-again.
-
-To do this, in your `~/.m2/settings.xml` file, you can add a profile like this:
-```xml
-      <profile>
-        <id>shared-gwt-cache</id>
-        <activation>
-          <activeByDefault>true</activeByDefault>
-        </activation>
-        <properties>
-          <gwt3.cache.dir>/home/myusername/.m2/gwt3BuildCache</gwt3.cache.dir>
-        </properties>
-      </profile>
-```
-
-Since compiled output is stored based on the hash of the inputs, this should be safe, but from time to time
-you may find the need to remove some cache entries. There are a few tools for this:
- 
- * `mvn j2cl:clean` - this will find all the artifacts in the current reactor project and remove any cache entries
- found in the specified directory. 
- * `mvn j2cl:clean -Dartifact=some-artifact-id` - deletes any artifact that was built with this plugin from the
- cache which has an artifactId matching the given parameter. Currently does not support a groupId in the name
- of making it easier to quickly specify a cache entry, and to make the contents of the cache directory slightly
- easier to traverse manually.
- * `mvn j2cl:clean -Dartifact=*` - deletes all contents in the cache directory. If you find yourself doing this 
- a lot, file a bug describing whatever is going wrong frequently, and consider leaving the cache directory in the
- target directory where it defaults to, so that it can be cleaned automatically.
- 
-----
- 
 ## Build process
 
 This section is in somewhat reverse order, as each step in the build process is requested by some other step
@@ -132,7 +37,7 @@ anywhere one of the specified dependencies is found. By default, this replaces t
 groupId:artifactId pairs with `com.vertispan.jsinterop:base`, which is _only_ j2cl compatible (and backward 
 compatible to at least 1.0.0-RC1), and removes gwt-dev, gwt-servlet, and gwt-user outright, with no replacements.
 
-As this replacement tool affects the dependencies that a given set of sources has, it naturally changes the has as
+As this replacement tool affects the dependencies that a given set of sources has, it naturally changes the hash as
 well. This means that two different applications being compiled, with the same set of dependencies, but with
 different replacement rules, might well share little or none of the cache with the other. 
 
