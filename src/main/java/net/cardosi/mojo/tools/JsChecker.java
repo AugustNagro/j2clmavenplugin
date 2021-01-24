@@ -31,6 +31,7 @@ public class JsChecker {
         Compiler compiler = new Compiler();
         CompilerOptions options = new CompilerOptions();
         options.setLanguage(CompilerOptions.LanguageMode.ECMASCRIPT_2017);
+        options.setProcessCommonJSModules(true);
         options.setStrictModeInput(true);
         options.setIncrementalChecks(CompilerOptions.IncrementalCheckMode.GENERATE_IJS);
         options.setCodingConvention(new ClosureCodingConvention());

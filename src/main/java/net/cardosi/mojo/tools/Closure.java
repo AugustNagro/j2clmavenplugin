@@ -69,6 +69,8 @@ public class Closure {
 
         jscompArgs.add("--language_out");
         jscompArgs.add(languageOut.name());
+        
+        jscompArgs.add("--process_common_js_modules");
 
         jscompArgs.addAll(Arrays.asList(//TODO parameterize?
                 "--jscomp_off",
